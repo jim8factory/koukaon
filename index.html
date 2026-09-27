@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>戦隊ヒーロー効果音スタジオ</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,sans-serif;background:#111;color:#fff}
+header{padding:18px;text-align:center;background:linear-gradient(135deg,#24104d,#092d52)}
+h1{margin:0 0 6px;font-size:26px}
+.sub{color:#cdd8ff;font-size:13px}
+main{max-width:1000px;margin:auto;padding:14px}
+.panel{background:#1b1b1f;border:1px solid #383842;border-radius:14px;padding:14px;margin-bottom:14px}
+h2{font-size:18px;margin:0 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:9px}
+button{border:0;border-radius:12px;padding:15px 8px;background:#30303a;color:white;font-size:15px;font-weight:bold;cursor:pointer;min-height:64px}
+button:active{transform:scale(.96)}
+.sound{background:#252b3c}
+.special{background:#493020}
+.play{background:#174f38}
+.stop{background:#6a2222}
+input[type=range]{width:100%}
+.sequence{min-height:80px;padding:10px;border:1px dashed #555;border-radius:10px;background:#111}
+.seqitem{display:inline-flex;align-items:center;gap:5px;background:#30303a;border-radius:8px;padding:7px;margin:4px;font-size:13px}
+.seqitem button{min-height:0;padding:3px 7px;background:#555;font-size:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row button{flex:1}
+.status{font-size:13px;color:#9fd8ff;margin-top:8px;min-height:20px}
+.note{font-size:12px;color:#aaa;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+<h1>⚡ 戦隊ヒーロー効果音スタジオ</h1>
+<div class="sub">押して鳴らす・並べて演出を作る・外部音源不要</div>
+</header>
+
+<main>
+<section class="panel">
+<h2>🎬 シーンプリセット</h2>
+<div class="grid">
+<button class="special" onclick="preset('変身シーン')">⚡ 変身</button>
+<button class="special" onclick="preset('名乗りシーン')">🔥 名乗り</button>
+<button class="special" onclick="preset('戦闘シーン')">⚔️ 戦闘</button>
+<button class="special" onclick="preset('必殺技シーン')">💥 必殺技</button>
+<button class="special" onclick="preset('勝利シーン')">🏆 勝利</button>
+</div>
+</section>
+
+<section class="panel">
+<h2>🔊 効果音</h2>
+<div class="grid">
+<button class="sound" onclick="play('charge')">⚡ エネルギー充填</button>
+<button class="sound" onclick="play('transform')">✨ 変身</button>
+<button class="sound" onclick="play('arrival')">🚀 登場</button>
+<button class="sound" onclick="play('pose')">🌟 決めポーズ</button>
+<button class="sound" onclick="play('sword')">⚔️ 剣撃</button>
+<button class="sound" onclick="play('punch')">👊 パンチ</button>
+<button class="sound" onclick="play('kick')">🦵 キック</button>
+<button class="sound" onclick="play('hit')">💢 被弾</button>
+<button class="sound" onclick="play('blast')">💥 爆発</button>
+<button class="sound" onclick="play('beam')">🔴 ビーム</button>
+<button class="sound" onclick="play('danger')">🚨 危機警報</button>
+<button class="sound" onclick="play('count')">⏱️ カウントダウン</button>
+<button class="sound" onclick="play('finish')">💥 フィニッシュ</button>
+<button class="sound" onclick="play('victory')">🏆 勝利</button>
+</div>
+</section>
+
+<section class="panel">
+<h2>🎛️ 演出コントロール</h2>
+<label>音量　<span id="volText">70</span>%</label>
+<input id="volume" type="range" min="0" max="100" value="70" oninput="volText.textContent=this.value">
+<div class="row" style="margin-top:12px">
+<button class="play" onclick="runSequence()">▶ 演出を再生</button>
+<button class="stop" onclick="stopAll()">■ 停止</button>
+<button onclick="clearSequence()">🗑 クリア</button>
+</div>
+<div class="status" id="status">効果音を選択してください。</div>
+</section>
+
+<section class="panel">
+<h2>🎞️ 自分で演出を作る</h2>
+<div id="sequence" class="sequence">ここに効果音を追加できます。</div>
+<p class="note">「＋演出に追加」ボタンを押して順番を作ります。各効果音の再生ボタンで試聴できます。</p>
+</section>
+</main>
+
+<script>
+let ctx=null, master=null, timers=[], sequence=[];
+const names={
+ charge:'エネルギー充填',transform:'変身',arrival:'登場',pose:'決めポーズ',
+ sword:'剣撃',punch:'パンチ',kick:'キック',hit:'被弾',blast:'爆発',
+ beam:'ビーム',danger:'危機警報',count:'カウントダウン',finish:'フィニッシュ',victory:'勝利'
+};
+function audio(){
+ if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();master.connect(ctx.destination)}
+ if(ctx.state==='suspended')ctx.resume();
+ master.gain.value=Number(volume.value)/100;
+ return ctx;
+}
+function tone(f,d=.2,type='sawtooth',delay=0,gain=.15){
+ const c=audio(),o=c.createOscillator(),g=c.createGain(),t=c.currentTime+delay;
+ o.type=type;o.frequency.setValueAtTime(f,t);
+ g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain,t+.015);
+ g.gain.exponentialRampToValueAtTime(.001,t+d);
+ o.connect(g);g.connect(master);o.start(t);o.stop(t+d+.03);
+}
+function noise(d=.2,delay=0,gain=.2){
+ const c=audio(),n=c.sampleRate*d,buf=c.createBuffer(1,n,c.sampleRate),a=buf.getChannelData(0);
+ for(let i=0;i<n;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/n,1.5);
+ const s=c.createBufferSource(),g=c.createGain(),t=c.currentTime+delay;
+ s.buffer=buf;g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(.001,t+d);
+ s.connect(g);g.connect(master);s.start(t);
+}
+function play(x,add=false){
+ audio(); stopTimersOnly();
+ const c=ctx;
+ if(x==='charge'){[220,277,330,440,554].forEach((f,i)=>tone(f,.28,'sawtooth',i*.12,.13))}
+ if(x==='transform'){[330,440,554,660,880,1100].forEach((f,i)=>tone(f,.18,'square',i*.1,.12));tone(1320,.5,'triangle',.62,.2)}
+ if(x==='arrival'){tone(90,.6,'sawtooth',0,.18);tone(440,.5,'triangle',.22,.16);noise(.18,.55,.18)}
+ if(x==='pose'){[523,659,784,1047].forEach((f,i)=>tone(f,.25,'square',i*.09,.13))}
+ if(x==='sword'){tone(1300,.12,'sawtooth',0,.18);tone(700,.25,'triangle',.1,.13)}
+ if(x==='punch'){noise(.12,0,.3);tone(120,.18,'square',.02,.2)}
+ if(x==='kick'){tone(180,.12,'sine',0,.2);noise(.16,.05,.28)}
+ if(x==='hit'){noise(.22,0,.3);tone(75,.25,'sawtooth',.02,.18)}
+ if(x==='blast'){noise(.55,0,.4);tone(100,.7,'sawtooth',.03,.18)}
+ if(x==='beam'){tone(250,.7,'sine',0,.14);tone(700,.55,'sawtooth',.15,.1);tone(1400,.35,'triangle',.4,.12)}
+ if(x==='danger'){[440,330,440,330].forEach((f,i)=>tone(f,.16,'square',i*.18,.15))}
+ if(x==='count'){[440,440,440].forEach((f,i)=>tone(f,.18,'square',i*.5,.14));tone(880,.45,'square',1.55,.18)}
+ if(x==='finish'){tone(180,.3,'sawtooth',0,.2);noise(.35,.08,.3);[440,660,880].forEach((f,i)=>tone(f,.3,'triangle',.25+i*.1,.13))}
+ if(x==='victory'){[523,659,784,1047,1319].forEach((f,i)=>tone(f,.3,'triangle',i*.13,.14))}
+ status.textContent='再生：'+names[x];
+}
+function stopTimersOnly(){timers.forEach(clearTimeout);timers=[]}
+function stopAll(){stopTimersOnly();status.textContent='停止しました。'}
+function addSequence(x){sequence.push(x);render()}
+function render(){
+ sequenceEl=document.getElementById('sequence');
+ if(!sequence.length){sequenceEl.textContent='ここに効果音を追加できます。';return}
+ sequenceEl.innerHTML=sequence.map((x,i)=>`<span class="seqitem">${i+1}. ${names[x]} <button onclick="removeSeq(${i})">×</button></span>`).join('');
+}
+function removeSeq(i){sequence.splice(i,1);render()}
+function clearSequence(){sequence=[];render();status.textContent='演出をクリアしました。'}
+function runSequence(){
+ if(!sequence.length){status.textContent='先に効果音を追加してください。';return}
+ stopAll(); audio();
+ let t=0;
+ sequence.forEach(x=>{
+   const id=setTimeout(()=>play(x),t);timers.push(id);
+   t+=800;
+ });
+ status.textContent='演出を再生中…';
+}
+function preset(type){
+ const map={
+  '変身シーン':['danger','charge','transform','pose'],
+  '名乗りシーン':['arrival','pose','pose'],
+  '戦闘シーン':['arrival','punch','sword','hit','kick','blast'],
+  '必殺技シーン':['charge','beam','finish','blast'],
+  '勝利シーン':['finish','victory']
+ };
+ sequence=map[type].slice();render();status.textContent=type+'をセットしました。▶で再生できます。';
+}
+// 効果音ボタン長押し/右クリックの代わりにダブルクリックで追加
+document.querySelectorAll('.sound').forEach((b,i)=>{
+ const key=Object.keys(names)[i];
+ b.ondblclick=()=>{addSequence(key);status.textContent=names[key]+'を演出に追加しました。'}
+});
+</script>
+</body>
+</html>
